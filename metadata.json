@@ -1,0 +1,6 @@
+{
+  "name": "حجز كورة",
+  "description": "تطبيق تنظيم وحجز مباريات كرة القدم للأصدقاء مع تقسيم الفرق، الشات، المنشورات، ولوحة تحكم الأدمن.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
