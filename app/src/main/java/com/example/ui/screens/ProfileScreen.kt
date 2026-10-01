@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.FootballViewModel
 import com.example.ui.components.AdminBadge
+import com.example.ui.components.AdminUnlockDialog
 import com.example.ui.components.GoldenCrownBadge
 import com.example.ui.theme.ChampionGold
 import com.example.ui.theme.ChampionGoldBright
@@ -82,12 +83,137 @@ fun ProfileScreen(
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val isDarkTheme by viewModel.isDarkTheme.collectAsState()
+    val isAdminModeUnlocked by viewModel.isAdminModeUnlocked.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var showAdminUnlockDialog by remember { mutableStateOf(false) }
 
     if (currentUser == null) return
     val user = currentUser!!
     val isMvp = user.isCurrentMvp
+
+    // Admin Unlock Dialog
+    if (showAdminUnlockDialog) {
+        AdminUnlockDialog(
+            onDismiss = { showAdminUnlockDialog = false },
+            onUnlock = { username, pass ->
+                viewModel.unlockAdminMode(username, pass) { success, _ ->
+                    if (success) {
+                        showAdminUnlockDialog = false
+                    }
+                }
+            }
+        )
+    }
+
+    // Change Password Modal Dialog
+    if (showPasswordDialog) {
+        var oldPassword by remember { mutableStateOf("") }
+        var newPassword by remember { mutableStateOf("") }
+        var confirmPassword by remember { mutableStateOf("") }
+        var passwordError by remember { mutableStateOf<String?>(null) }
+
+        Dialog(onDismissRequest = { showPasswordDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔑", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "تغيير كلمة المرور",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                        IconButton(onClick = { showPasswordDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "إلغاء")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = oldPassword,
+                        onValueChange = { oldPassword = it; passwordError = null },
+                        label = { Text("كلمة المرور الحالية") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it; passwordError = null },
+                        label = { Text("كلمة المرور الجديدة") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it; passwordError = null },
+                        label = { Text("تأكيد كلمة المرور الجديدة") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (passwordError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = passwordError ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = {
+                            if (oldPassword.isBlank() || newPassword.isBlank()) {
+                                passwordError = "يرجى ملء جميع الحقول المطلوبة!"
+                                return@Button
+                            }
+                            if (newPassword != confirmPassword) {
+                                passwordError = "كلمة المرور الجديدة غير متطابقة!"
+                                return@Button
+                            }
+                            viewModel.changePassword(oldPassword, newPassword) { success, msg ->
+                                if (success) {
+                                    showPasswordDialog = false
+                                } else {
+                                    passwordError = msg
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("حفظ كلمة المرور الجديدة 🔒", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
 
     // Edit Profile Modal
     if (showEditDialog) {
@@ -349,18 +475,35 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedButton(
-                    onClick = { showEditDialog = true },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.testTag("edit_profile_button")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("تعديل البيانات والمركز", fontSize = 12.sp)
+                    OutlinedButton(
+                        onClick = { showEditDialog = true },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("edit_profile_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("تعديل البيانات", fontSize = 11.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = { showPasswordDialog = true },
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("change_password_button")
+                    ) {
+                        Text("🔑 تغيير الباسورد", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -554,6 +697,37 @@ fun ProfileScreen(
         }
 
         Spacer(modifier = Modifier.height(20.dp))
+
+        // Admin Control Gateway in Profile
+        OutlinedButton(
+            onClick = {
+                if (isAdminModeUnlocked) {
+                    viewModel.lockAdminMode()
+                } else {
+                    showAdminUnlockDialog = true
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Security,
+                contentDescription = null,
+                tint = ChampionGold,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isAdminModeUnlocked) "لوحة تحكم الأدمن مفعلة 🛡️ (اضغط للقفل)" else "دخول لوحة تحكم الأدمن (Bruce) 🛡️",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = if (isAdminModeUnlocked) ChampionGold else MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Logout Button
         Button(

@@ -83,13 +83,16 @@ fun FeedScreen(
 ) {
     val posts by viewModel.allPosts.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
+    val isAdminModeUnlocked by viewModel.isAdminModeUnlocked.collectAsState()
+
+    val isUserAdmin = (currentUser?.isAdmin == true) || isAdminModeUnlocked
 
     var newPostContent by remember { mutableStateOf("") }
     var selectedTag by remember { mutableStateOf("عام 💬") }
     var isPinnedPost by remember { mutableStateOf(false) }
     var viewingCommentsPostId by remember { mutableStateOf<Long?>(null) }
 
-    val tags = if (currentUser?.isAdmin == true) {
+    val tags = if (isUserAdmin) {
         listOf("إعلان رسمي 📢", "تحدي 🔥", "تكتيك وتشكيلة ⚽", "ميمز 😂", "عام 💬")
     } else {
         listOf("تحدي 🔥", "تكتيك وتشكيلة ⚽", "ميمز 😂", "عام 💬")
@@ -199,7 +202,7 @@ fun FeedScreen(
                     }
 
                     // Admin Pin option
-                    if (currentUser?.isAdmin == true) {
+                    if (isUserAdmin) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 4.dp)
@@ -230,12 +233,12 @@ fun FeedScreen(
                             .testTag("publish_post_button"),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (currentUser?.isAdmin == true && selectedTag.contains("رسمي")) ChampionGold else MaterialTheme.colorScheme.primary,
-                            contentColor = if (currentUser?.isAdmin == true && selectedTag.contains("رسمي")) Color.Black else Color.White
+                            containerColor = if (isUserAdmin && selectedTag.contains("رسمي")) ChampionGold else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isUserAdmin && selectedTag.contains("رسمي")) Color.Black else Color.White
                         )
                     ) {
                         Text(
-                            text = if (currentUser?.isAdmin == true) "نشر كأدمن ⭐" else "نشر البوست 🚀",
+                            text = if (isUserAdmin) "نشر كأدمن ⭐" else "نشر البوست 🚀",
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -244,6 +247,33 @@ fun FeedScreen(
         }
 
         // Feed List
+        if (posts.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 30.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📣", fontSize = 38.sp)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "لا توجد منشورات بعد",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "كن أول من ينشر خبراً أو تحدياً أو تشكيلة في المجتمع!",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         items(posts) { post ->
             PostItemCard(
                 post = post,

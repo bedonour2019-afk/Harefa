@@ -27,6 +27,12 @@ interface AppDao {
     @Query("SELECT * FROM users WHERE phone = :phone LIMIT 1")
     suspend fun getUserByPhone(phone: String): User?
 
+    @Query("SELECT * FROM users WHERE phone = :input OR name = :input LIMIT 1")
+    suspend fun getUserByPhoneOrName(input: String): User?
+
+    @Query("DELETE FROM users WHERE id = :userId")
+    suspend fun deleteUser(userId: Long)
+
     @Query("SELECT * FROM users WHERE id = :id LIMIT 1")
     suspend fun getUserByIdSync(id: Long): User?
 
@@ -113,6 +119,9 @@ interface AppDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertComment(comment: Comment): Long
 
+    @Query("DELETE FROM comments WHERE id = :commentId")
+    suspend fun deleteComment(commentId: Long)
+
     @Query("UPDATE posts SET commentsCount = commentsCount + 1 WHERE id = :postId")
     suspend fun incrementCommentCount(postId: Long)
 
@@ -138,4 +147,26 @@ interface AppDao {
 
     @Query("UPDATE notifications SET isRead = 1")
     suspend fun markAllNotificationsRead()
+
+    // --- Cleanup & Purge Dummy Data ---
+    @Query("DELETE FROM users WHERE phone IN ('01000000000', '01011111111', '01022222222', '01033333333', '01044444444', '01055555555', '01066666666', '01077777777', '01099999999') OR name LIKE '%(الأدمن)%'")
+    suspend fun purgeDummyUsers()
+
+    @Query("DELETE FROM posts WHERE authorPhone IN ('01000000000', '01011111111', '01022222222', '01033333333')")
+    suspend fun purgeDummyPosts()
+
+    @Query("DELETE FROM chat_messages WHERE senderName LIKE '%(الأدمن)%' OR senderName IN ('عمر الكردي', 'مصطفى شلبي', 'كريم عبد العزيز')")
+    suspend fun purgeDummyMessages()
+
+    @Query("DELETE FROM attendances WHERE userPhone IN ('01000000000', '01011111111', '01022222222', '01033333333', '01044444444', '01055555555', '01066666666', '01077777777')")
+    suspend fun purgeDummyAttendances()
+
+    @Query("DELETE FROM notifications WHERE message LIKE '%كابتن أحمد%' OR message LIKE '%عمر الكردي%'")
+    suspend fun purgeDummyNotifications()
+
+    @Query("DELETE FROM chat_messages WHERE receiverId IS NULL")
+    suspend fun clearPublicChat()
+
+    @Query("DELETE FROM posts")
+    suspend fun clearAllPosts()
 }

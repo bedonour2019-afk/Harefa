@@ -74,6 +74,8 @@ fun AdminScreen(
 
     val allUsers by viewModel.allUsers.collectAsState()
     val currentMatch by viewModel.currentMatch.collectAsState()
+    val pendingRegistration by viewModel.pendingRegistration.collectAsState()
+    val pendingSmsCode by viewModel.pendingSmsCode.collectAsState()
 
     // Match editor states
     var matchTitle by remember(currentMatch) { mutableStateOf(currentMatch?.title ?: "") }
@@ -122,22 +124,29 @@ fun AdminScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "لوحة تحكم الأدمن 🛡️",
+                                text = "لوحة تحكم الأدمن (Bruce) 🛡️",
                                 fontWeight = FontWeight.Black,
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             AdminBadge()
                         }
                         Text(
-                            text = "عرض بيانات الأعضاء (الاسم، الرقم، الباسورد) وخاصية الحظر",
+                            text = "التحكم الكامل: الأعضاء، الماتش، تصفير البيانات، وحظر الأرقام",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+
+                    OutlinedButton(
+                        onClick = { viewModel.lockAdminMode() },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("قفل 🔒", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -152,19 +161,84 @@ fun AdminScreen(
                 Tab(
                     selected = adminTab == 0,
                     onClick = { adminTab = 0 },
-                    text = { Text("بيانات الأعضاء والحظر 👥", fontWeight = FontWeight.Bold) },
+                    text = { Text("الأعضاء والحظر 👥", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                     modifier = Modifier.testTag("admin_tab_members")
                 )
                 Tab(
                     selected = adminTab == 1,
                     onClick = { adminTab = 1 },
-                    text = { Text("إعدادات الماتش 🏟️", fontWeight = FontWeight.Bold) },
+                    text = { Text("الماتش 🏟️", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                     modifier = Modifier.testTag("admin_tab_match_settings")
+                )
+                Tab(
+                    selected = adminTab == 2,
+                    onClick = { adminTab = 2 },
+                    text = { Text("التحكم والتنظيف 🧹", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                    modifier = Modifier.testTag("admin_tab_cleanup")
                 )
             }
         }
 
         if (adminTab == 0) {
+            // Pending Registrations Notification Card for Admin
+            if (pendingRegistration != null) {
+                item {
+                    val reg = pendingRegistration!!
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, ChampionGold)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🔔", fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "طلب تسجيل معلق بانتظار التحقق",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = ChampionGold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "الاسم: ${reg.first} | الرقم: ${reg.second}",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "كود التحقق SMS: ${pendingSmsCode ?: ""}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = PitchAccentMint
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { viewModel.completeRegistrationAfterOtp() },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PitchGreenPrimary),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("تفعيل الحساب فوراً ✅", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.cancelSmsVerification() },
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("إلغاء ❌", fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // User Credentials & Ban Management
             item {
                 Text(
@@ -179,10 +253,13 @@ fun AdminScreen(
                     user = user,
                     onToggleBan = { isBanned ->
                         viewModel.toggleBan(user.phone, isBanned)
+                    },
+                    onDeleteUser = {
+                        viewModel.deleteUserAccount(user.id)
                     }
                 )
             }
-        } else {
+        } else if (adminTab == 1) {
             // Match Settings Editor
             item {
                 Card(
@@ -293,6 +370,88 @@ fun AdminScreen(
                     }
                 }
             }
+        } else {
+            // Tab 2: System Control & Data Purge (التحكم والتنظيف)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp)
+                    ) {
+                        Text(
+                            text = "بيانات دخول الأدمن 🔑",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(14.dp)
+                        ) {
+                            Column {
+                                Text("اسم المستخدم (Username): Bruce", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ChampionGold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("كلمة المرور (Password): 951753", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PitchAccentMint)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text("أي شخص يمتلك هذه البيانات يمكنه فتح لوحة التحكم وإدارتها بالكامل.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Text(
+                            text = "تنظيف وتصفير البيانات 🧹",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "يمكنك مسح وتصفير كافة البيانات التجريبية والحسابات والرسائل للبدء مع الأصدقاء الحقيقيين من الصفر.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Button(
+                            onClick = { viewModel.purgeAllDummyData() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                        ) {
+                            Text("🧹 مسح كافة الحسابات والبيانات الوهمية", fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedButton(
+                            onClick = { viewModel.clearPublicChat() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("💬 تفريغ رسائل الشات العام", fontWeight = FontWeight.SemiBold)
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedButton(
+                            onClick = { viewModel.clearAllPosts() },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("📣 مسح كافة المنشورات في المجتمع", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -307,7 +466,8 @@ fun AdminScreen(
 @Composable
 fun AdminUserRowCard(
     user: User,
-    onToggleBan: (Boolean) -> Unit
+    onToggleBan: (Boolean) -> Unit,
+    onDeleteUser: () -> Unit
 ) {
     var showPassword by remember { mutableStateOf(false) }
 
@@ -368,8 +528,8 @@ fun AdminUserRowCard(
                     }
                 }
 
-                // Ban / Unban Button
-                if (!user.isAdmin) {
+                // Actions for player
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
                         onClick = { onToggleBan(!user.isBanned) },
                         shape = RoundedCornerShape(10.dp),
@@ -385,10 +545,17 @@ fun AdminUserRowCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (user.isBanned) "إلغاء الحظر" else "حظر (بان) 🚫",
+                            text = if (user.isBanned) "إلغاء الحظر" else "حظر 🚫",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+
+                    IconButton(
+                        onClick = onDeleteUser,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Text("🗑️", fontSize = 16.sp)
                     }
                 }
             }

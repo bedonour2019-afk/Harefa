@@ -101,6 +101,9 @@ fun MatchScreen(
     val currentUser by viewModel.currentUser.collectAsState()
     val allUsers by viewModel.allUsers.collectAsState()
     val matchStats by viewModel.matchStats.collectAsState()
+    val isAdminModeUnlocked by viewModel.isAdminModeUnlocked.collectAsState()
+
+    val isUserAdmin = (currentUser?.isAdmin == true) || isAdminModeUnlocked
 
     val myAttendance = attendances.find { it.userId == currentUser?.id }
     val confirmedCount = attendances.count { it.status == "COMING" }
@@ -420,7 +423,7 @@ fun MatchScreen(
                             )
                         }
 
-                        if (currentUser?.isAdmin == true) {
+                        if (isUserAdmin) {
                             Button(
                                 onClick = { showRecordStatDialog = true },
                                 shape = RoundedCornerShape(10.dp),
@@ -638,7 +641,7 @@ fun MatchScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = if (user?.hasPaid == true) PitchAccentMint else Color(0xFFE57373)
                                         )
-                                        if (currentUser?.isAdmin == true) {
+                                        if (isUserAdmin) {
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Switch(
                                                 checked = user?.hasPaid == true,

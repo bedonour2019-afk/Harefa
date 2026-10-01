@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
@@ -62,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.FootballViewModel
+import com.example.ui.components.AdminUnlockDialog
 import com.example.ui.components.SmsVerificationDialog
 import com.example.ui.theme.ChampionGold
 import com.example.ui.theme.PitchAccentMint
@@ -83,14 +85,39 @@ fun AuthScreen(
     var authError by remember { mutableStateOf<String?>(null) }
 
     val pendingSmsCode by viewModel.pendingSmsCode.collectAsState()
+    val pendingRegistration by viewModel.pendingRegistration.collectAsState()
+    val pendingPasswordReset by viewModel.pendingPasswordReset.collectAsState()
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var showAdminGatewayDialog by remember { mutableStateOf(false) }
+
+    if (showAdminGatewayDialog) {
+        AdminUnlockDialog(
+            onDismiss = { showAdminGatewayDialog = false },
+            onUnlock = { username, pass ->
+                viewModel.loginAsAdminGateway(username, pass) { success, msg ->
+                    if (success) {
+                        showAdminGatewayDialog = false
+                    } else {
+                        authError = msg
+                    }
+                }
+            }
+        )
+    }
 
     // Show SMS verification modal if code is active
     if (pendingSmsCode != null) {
+        val phoneTarget = pendingRegistration?.second ?: pendingPasswordReset?.first ?: phone
         SmsVerificationDialog(
-            phoneNumber = phone,
+            phoneNumber = phoneTarget,
             expectedCode = pendingSmsCode ?: "",
             onVerified = {
-                viewModel.completeRegistrationAfterOtp()
+                if (pendingRegistration != null) {
+                    viewModel.completeRegistrationAfterOtp()
+                } else if (pendingPasswordReset != null) {
+                    viewModel.completePasswordResetAfterOtp()
+                    showForgotPasswordDialog = false
+                }
             },
             onDismiss = {
                 viewModel.cancelSmsVerification()
@@ -99,6 +126,100 @@ fun AuthScreen(
                 viewModel.resendSmsCode()
             }
         )
+    }
+
+    // Forgot Password Dialog
+    if (showForgotPasswordDialog) {
+        var resetPhone by remember { mutableStateOf(phone) }
+        var resetNewPass by remember { mutableStateOf("") }
+        var resetError by remember { mutableStateOf<String?>(null) }
+
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showForgotPasswordDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "إعادة تعيين كلمة المرور 🔑",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        IconButton(onClick = { showForgotPasswordDialog = false }) {
+                            Icon(Icons.Default.Close, contentDescription = "إلغاء")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "أدخل رقم هاتفك المسجل وكلمة المرور الجديدة، وسيتم إرسال كود SMS للتأكيد.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = resetPhone,
+                        onValueChange = { resetPhone = it; resetError = null },
+                        label = { Text("رقم الهاتف") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = resetNewPass,
+                        onValueChange = { resetNewPass = it; resetError = null },
+                        label = { Text("كلمة المرور الجديدة") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (resetError != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = resetError ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = {
+                            if (resetPhone.isBlank() || resetNewPass.isBlank()) {
+                                resetError = "يرجى ملء جميع الحقول!"
+                                return@Button
+                            }
+                            viewModel.initiatePasswordReset(resetPhone, resetNewPass) { success, msg ->
+                                if (!success) resetError = msg
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("إرسال كود التحقق SMS 📲", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 
     Box(
@@ -308,6 +429,20 @@ fun AuthScreen(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        androidx.compose.material3.TextButton(
+                            onClick = { showForgotPasswordDialog = true },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(
+                                text = "نسيت كلمة المرور؟ (استعادة عبر SMS) 🔄",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     } else {
                         Button(
                             onClick = {
@@ -338,14 +473,14 @@ fun AuthScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Quick Demo Login Shortcut
+                    // Secure Admin Control Gateway (Bruce / 951753)
                     OutlinedButton(
                         onClick = {
-                            viewModel.login("01000000000", "admin") { _, _ -> }
+                            showAdminGatewayDialog = true
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("quick_admin_login"),
+                            .testTag("admin_gateway_button"),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
@@ -356,9 +491,10 @@ fun AuthScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "الدخول السريع كـ أدمن (كابتن أحمد)",
+                            text = "بوابة تحكم الأدمن (Bruce) 🛡️",
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 13.sp
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

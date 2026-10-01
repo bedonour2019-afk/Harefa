@@ -30,20 +30,73 @@ class FootballViewModel(application: Application) : AndroidViewModel(application
         repository = FootballRepository(db.appDao())
         viewModelScope.launch {
             repository.seedInitialDataIfNeeded()
-            // Auto login default admin for convenience if no user logged in
-            val admin = repository.getUserByPhone("01000000000")
-            if (admin != null && _currentUser.value == null) {
-                _currentUser.value = admin
-            }
         }
     }
 
-    // App Preferences
-    private val _isDarkTheme = MutableStateFlow(true)
-    val isDarkTheme: StateFlow<Boolean> = _isDarkTheme.asStateFlow()
+    // App Preferences (Always Dark Stadium Theme)
+    val isDarkTheme: StateFlow<Boolean> = MutableStateFlow(true)
 
-    fun toggleTheme() {
-        _isDarkTheme.value = !_isDarkTheme.value
+    // Admin Control Panel Unlock State (Bruce / 951753)
+    private val _isAdminModeUnlocked = MutableStateFlow(false)
+    val isAdminModeUnlocked: StateFlow<Boolean> = _isAdminModeUnlocked.asStateFlow()
+
+    fun unlockAdminMode(username: String, pass: String, onResult: (Boolean, String) -> Unit) {
+        if (username.trim().equals("Bruce", ignoreCase = true) && pass.trim() == "951753") {
+            _isAdminModeUnlocked.value = true
+            showToast("تم فتح لوحة تحكم الأدمن بنجاح 🛡️")
+            onResult(true, "تم الدخول كأدمن")
+        } else {
+            onResult(false, "اسم مستخدم الأدمن أو الباسورد غير صحيح!")
+        }
+    }
+
+    fun loginAsAdminGateway(username: String, pass: String, onResult: (Boolean, String) -> Unit) {
+        if (username.trim().equals("Bruce", ignoreCase = true) && pass.trim() == "951753") {
+            _isAdminModeUnlocked.value = true
+            val adminUser = User(
+                id = 999999,
+                phone = "0000000000",
+                name = "Bruce (الأدمن)",
+                password = pass.trim(),
+                isAdmin = true,
+                position = "مدرب الفريق",
+                jerseyNumber = 1,
+                matchesPlayed = 0,
+                matchesWon = 0,
+                mvpCount = 0
+            )
+            _currentUser.value = adminUser
+            showToast("تم فتح لوحة تحكم الأدمن (Bruce) بنجاح 🛡️")
+            onResult(true, "تم الدخول بنجاح")
+        } else {
+            onResult(false, "اسم مستخدم الأدمن أو الباسورد غير صحيح!")
+        }
+    }
+
+    fun purgeAllDummyData() {
+        viewModelScope.launch {
+            repository.purgeAllDummyData()
+            showToast("تم تصفير ومسح كافة البيانات التجريبية والوهمية 🧹")
+        }
+    }
+
+    fun clearPublicChat() {
+        viewModelScope.launch {
+            repository.clearPublicChat()
+            showToast("تم تفريغ رسائل الشات العام 🧹")
+        }
+    }
+
+    fun clearAllPosts() {
+        viewModelScope.launch {
+            repository.clearAllPosts()
+            showToast("تم مسح كافة المنشورات 🧹")
+        }
+    }
+
+    fun lockAdminMode() {
+        _isAdminModeUnlocked.value = false
+        showToast("تم قفل لوحة تحكم الأدمن 🔒")
     }
 
     // Auth State
@@ -56,6 +109,9 @@ class FootballViewModel(application: Application) : AndroidViewModel(application
 
     private val _pendingRegistration = MutableStateFlow<Triple<String, String, String>?>(null) // Name, Phone, Password
     val pendingRegistration = _pendingRegistration.asStateFlow()
+
+    private val _pendingPasswordReset = MutableStateFlow<Pair<String, String>?>(null) // Phone, NewPassword
+    val pendingPasswordReset = _pendingPasswordReset.asStateFlow()
 
     val currentMatch: StateFlow<MatchSession?> = repository.currentMatch
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -171,6 +227,58 @@ class FootballViewModel(application: Application) : AndroidViewModel(application
     fun cancelSmsVerification() {
         _pendingSmsCode.value = null
         _pendingRegistration.value = null
+        _pendingPasswordReset.value = null
+    }
+
+    fun changePassword(oldPass: String, newPass: String, onResult: (Boolean, String) -> Unit) {
+        val user = _currentUser.value ?: return
+        if (newPass.trim().length < 4) {
+            onResult(false, "كلمة المرور يجب أن لا تقل عن 4 خانات!")
+            return
+        }
+        if (user.password != oldPass.trim()) {
+            onResult(false, "كلمة المرور الحالية غير صحيحة!")
+            return
+        }
+        viewModelScope.launch {
+            val updated = user.copy(password = newPass.trim())
+            repository.updateUser(updated)
+            _currentUser.value = updated
+            showToast("تم تحديث كلمة المرور بنجاح 🔒")
+            onResult(true, "تم تحديث كلمة المرور بنجاح")
+        }
+    }
+
+    fun initiatePasswordReset(phone: String, newPass: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val user = repository.getUserByPhone(phone.trim())
+            if (user == null) {
+                onResult(false, "رقم الهاتف غير مسجل في التطبيق!")
+                return@launch
+            }
+            if (newPass.trim().length < 4) {
+                onResult(false, "كلمة المرور الجديدة يجب أن لا تقل عن 4 خانات!")
+                return@launch
+            }
+            val code = (100000 + Random.nextInt(900000)).toString()
+            _pendingSmsCode.value = code
+            _pendingPasswordReset.value = Pair(phone.trim(), newPass.trim())
+            onResult(true, "تم إرسال كود التحقق لإعادة تعيين كلمة المرور عبر SMS")
+        }
+    }
+
+    fun completePasswordResetAfterOtp() {
+        val reset = _pendingPasswordReset.value ?: return
+        viewModelScope.launch {
+            val user = repository.getUserByPhone(reset.first)
+            if (user != null) {
+                val updated = user.copy(password = reset.second)
+                repository.updateUser(updated)
+                _pendingPasswordReset.value = null
+                _pendingSmsCode.value = null
+                showToast("تم تغيير كلمة المرور بنجاح! يمكنك الدخول الآن 🔑")
+            }
+        }
     }
 
     fun logout() {
@@ -205,6 +313,27 @@ class FootballViewModel(application: Application) : AndroidViewModel(application
     fun likePost(postId: Long) {
         viewModelScope.launch {
             repository.likePost(postId)
+        }
+    }
+
+    fun deletePost(postId: Long) {
+        viewModelScope.launch {
+            repository.deletePost(postId)
+            showToast("تم حذف المنشور بنجاح 🗑️")
+        }
+    }
+
+    fun deleteComment(commentId: Long) {
+        viewModelScope.launch {
+            repository.deleteComment(commentId)
+            showToast("تم حذف التعليق 🗑️")
+        }
+    }
+
+    fun deleteUserAccount(userId: Long) {
+        viewModelScope.launch {
+            repository.deleteUser(userId)
+            showToast("تم حذف حساب اللاعب نهائياً 🗑️")
         }
     }
 

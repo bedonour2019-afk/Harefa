@@ -76,6 +76,9 @@ fun TeamsScreen(
     val allUsers by viewModel.allUsers.collectAsState()
     val currentMatch by viewModel.currentMatch.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
+    val isAdminModeUnlocked by viewModel.isAdminModeUnlocked.collectAsState()
+
+    val isUserAdmin = (currentUser?.isAdmin == true) || isAdminModeUnlocked
 
     val teamAPlayers = allUsers.filter { it.teamAssignment == "TEAM_A" }
     val teamBPlayers = allUsers.filter { it.teamAssignment == "TEAM_B" }
@@ -116,7 +119,7 @@ fun TeamsScreen(
                     )
                 }
 
-                if (currentUser?.isAdmin == true) {
+                if (isUserAdmin) {
                     Button(
                         onClick = { viewModel.autoDivideTeams() },
                         shape = RoundedCornerShape(12.dp),
@@ -219,7 +222,7 @@ fun TeamsScreen(
                     }
 
                     // Admin MVP Picker dropdown button
-                    if (currentUser?.isAdmin == true) {
+                    if (isUserAdmin) {
                         Box {
                             OutlinedButton(
                                 onClick = { showMvpDropdown = true },
@@ -263,7 +266,7 @@ fun TeamsScreen(
                 isWinner = isTeamAWinner,
                 players = teamAPlayers,
                 isTeamA = true,
-                isAdmin = currentUser?.isAdmin == true,
+                isAdmin = isUserAdmin,
                 onSelectWinner = { viewModel.setWinningTeam("TEAM_A") },
                 onSwitchPlayer = { userId ->
                     viewModel.assignPlayerTeam(userId, "TEAM_B")
@@ -278,7 +281,7 @@ fun TeamsScreen(
                 isWinner = isTeamBWinner,
                 players = teamBPlayers,
                 isTeamA = false,
-                isAdmin = currentUser?.isAdmin == true,
+                isAdmin = isUserAdmin,
                 onSelectWinner = { viewModel.setWinningTeam("TEAM_B") },
                 onSwitchPlayer = { userId ->
                     viewModel.assignPlayerTeam(userId, "TEAM_A")
@@ -320,7 +323,7 @@ fun TeamsScreen(
                                     text = "⚽ ${player.name} (${player.position})",
                                     fontSize = 13.sp
                                 )
-                                if (currentUser?.isAdmin == true) {
+                                if (isUserAdmin) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         OutlinedButton(
                                             onClick = { viewModel.assignPlayerTeam(player.id, "TEAM_A") },

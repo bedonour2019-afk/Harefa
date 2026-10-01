@@ -180,11 +180,36 @@ fun ChatScreen(
                     )
 
                     val otherUsers = allUsers.filter { it.id != currentUser?.id }
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        items(otherUsers) { user ->
+                    if (otherUsers.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 40.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("👥", fontSize = 40.sp)
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "لا يوجد لاعبون آخرون مسجلون بعد",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "عندما يسجل أصحابك بأرقامهم الحقيقية ستظهر أسماؤهم هنا لبدء الشات الخاص معهم 🔒",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            items(otherUsers) { user ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -261,6 +286,7 @@ fun ChatScreen(
                             }
                         }
                     }
+                }
                 }
             } else {
                 // Active 1-on-1 private chat thread with selected user

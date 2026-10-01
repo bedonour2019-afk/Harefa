@@ -48,6 +48,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -137,10 +141,9 @@ fun AdminBadge(modifier: Modifier = Modifier) {
 @Composable
 fun AppHeader(
     currentUserName: String,
-    isAdmin: Boolean,
-    isDarkTheme: Boolean,
+    isAdminModeUnlocked: Boolean,
     unreadNotificationsCount: Int,
-    onToggleTheme: () -> Unit,
+    onOpenAdminPanel: () -> Unit,
     onOpenNotifications: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -179,7 +182,7 @@ fun AppHeader(
                             fontSize = 18.sp,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        if (isAdmin) {
+                        if (isAdminModeUnlocked) {
                             Spacer(modifier = Modifier.width(6.dp))
                             AdminBadge()
                         }
@@ -193,14 +196,15 @@ fun AppHeader(
             }
         },
         actions = {
+            // Admin Panel Action Button
             IconButton(
-                onClick = onToggleTheme,
-                modifier = Modifier.testTag("theme_toggle_button")
+                onClick = onOpenAdminPanel,
+                modifier = Modifier.testTag("admin_panel_button")
             ) {
                 Icon(
-                    imageVector = if (isDarkTheme) Icons.Default.Brightness7 else Icons.Default.Brightness4,
-                    contentDescription = "تبديل المظهر",
-                    tint = if (isDarkTheme) ChampionGold else MaterialTheme.colorScheme.primary
+                    imageVector = Icons.Default.Security,
+                    contentDescription = "لوحة تحكم الأدمن",
+                    tint = if (isAdminModeUnlocked) ChampionGold else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(
@@ -543,6 +547,115 @@ fun NotificationsDialog(
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Text("تحديد الكل كمقروء")
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dialog to unlock Admin Control Panel using Bruce / 951753
+ */
+@Composable
+fun AdminUnlockDialog(
+    onDismiss: () -> Unit,
+    onUnlock: (String, String) -> Unit
+) {
+    var adminUser by remember { mutableStateOf("") }
+    var adminPass by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = ChampionGold
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "لوحة تحكم الأدمن 🛡️",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "إلغاء")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "أدخل بيانات الأدمن للتحكم الكامل في الماتش، تقسيم الفرق، إحصائيات اللاعبين وحظر الأرقام.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                androidx.compose.material3.OutlinedTextField(
+                    value = adminUser,
+                    onValueChange = { adminUser = it; errorMsg = null },
+                    label = { Text("اسم المستخدم (Username)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                androidx.compose.material3.OutlinedTextField(
+                    value = adminPass,
+                    onValueChange = { adminPass = it; errorMsg = null },
+                    label = { Text("كلمة المرور (Password)") },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMsg != null) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = errorMsg ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                androidx.compose.material3.Button(
+                    onClick = {
+                        if (adminUser.isBlank() || adminPass.isBlank()) {
+                            errorMsg = "يرجى إدخال اسم المستخدم وكلمة المرور!"
+                            return@Button
+                        }
+                        if (adminUser.trim().equals("Bruce", ignoreCase = true) && adminPass.trim() == "951753") {
+                            onUnlock(adminUser.trim(), adminPass.trim())
+                        } else {
+                            errorMsg = "اسم المستخدم أو كلمة المرور غير صحيحة!"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("دخول وتفعيل لوحة التحكم 🚀", fontWeight = FontWeight.Bold)
                 }
             }
         }

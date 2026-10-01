@@ -31,7 +31,17 @@ class FootballRepository(private val dao: AppDao) {
 
     suspend fun getUserByPhone(phone: String): User? = dao.getUserByPhone(phone)
 
+    suspend fun getUserByPhoneOrName(input: String): User? = dao.getUserByPhoneOrName(input.trim())
+
     suspend fun getUserById(id: Long): User? = dao.getUserByIdSync(id)
+
+    suspend fun deleteUser(userId: Long) {
+        dao.deleteUser(userId)
+    }
+
+    suspend fun deleteComment(commentId: Long) {
+        dao.deleteComment(commentId)
+    }
 
     suspend fun registerUser(user: User): Long {
         val id = dao.insertUser(user)
@@ -265,198 +275,61 @@ class FootballRepository(private val dao: AppDao) {
         dao.markAllNotificationsRead()
     }
 
-    // Seed realistic initial data if database is empty
+    // Clean initial data (No fake accounts at all; Admin is a control panel unlocked by Bruce/951753)
     suspend fun seedInitialDataIfNeeded() {
-        val existingUsers = dao.getAllUsers().firstOrNull()
-        if (existingUsers.isNullOrEmpty()) {
-            val admin = User(
-                id = 1,
-                phone = "01000000000",
-                name = "كابتن أحمد (الادمن)",
-                password = "admin",
-                isAdmin = true,
-                jerseyNumber = 7,
-                position = "هجوم",
-                matchesPlayed = 24,
-                matchesWon = 18,
-                mvpCount = 8,
-                isCurrentMvp = true,
-                teamAssignment = "TEAM_A",
-                isWinningTeamMember = true,
-                hasPaid = true,
-                xp = 1450,
-                level = 5,
-                goals = 19,
-                assists = 11,
-                yellowCards = 2,
-                redCards = 0,
-                rating = 9.4
-            )
-            dao.insertUser(admin)
+        // Purge any dummy users, fake posts, fake messages, or placeholder admin accounts
+        dao.purgeDummyUsers()
+        dao.purgeDummyPosts()
+        dao.purgeDummyMessages()
+        dao.purgeDummyAttendances()
+        dao.purgeDummyNotifications()
 
-            val players = listOf(
-                User(2, "01111111111", "مصطفى زيزو", "123456", isAdmin = false, jerseyNumber = 10, position = "خط وسط", matchesPlayed = 20, matchesWon = 14, mvpCount = 4, teamAssignment = "TEAM_A", isWinningTeamMember = true, hasPaid = true, xp = 980, level = 4, goals = 12, assists = 14, yellowCards = 1, redCards = 0, rating = 8.9),
-                User(3, "01222222222", "عمر السولية", "123456", isAdmin = false, jerseyNumber = 14, position = "خط وسط", matchesPlayed = 19, matchesWon = 12, mvpCount = 3, teamAssignment = "TEAM_B", isWinningTeamMember = false, hasPaid = true, xp = 760, level = 3, goals = 7, assists = 9, yellowCards = 3, redCards = 0, rating = 8.2),
-                User(4, "01033333333", "محمود الونش", "123456", isAdmin = false, jerseyNumber = 4, position = "دفاع", matchesPlayed = 22, matchesWon = 15, mvpCount = 5, teamAssignment = "TEAM_A", isWinningTeamMember = true, hasPaid = false, xp = 1120, level = 4, goals = 4, assists = 3, yellowCards = 5, redCards = 1, rating = 8.8),
-                User(5, "01144444444", "كريم نيدفيد", "123456", isAdmin = false, jerseyNumber = 8, position = "خط وسط", matchesPlayed = 18, matchesWon = 10, mvpCount = 2, teamAssignment = "TEAM_B", isWinningTeamMember = false, hasPaid = true, xp = 540, level = 2, goals = 5, assists = 6, yellowCards = 2, redCards = 0, rating = 7.7),
-                User(6, "01255555555", "محمد الشناوي", "123456", isAdmin = false, jerseyNumber = 1, position = "حراسة مرمى", matchesPlayed = 23, matchesWon = 16, mvpCount = 6, teamAssignment = "TEAM_A", isWinningTeamMember = true, hasPaid = true, xp = 1250, level = 5, goals = 0, assists = 2, yellowCards = 1, redCards = 0, rating = 9.1),
-                User(7, "01066666666", "أحمد فتحي", "123456", isAdmin = false, jerseyNumber = 3, position = "دفاع", matchesPlayed = 21, matchesWon = 13, mvpCount = 2, teamAssignment = "TEAM_B", isWinningTeamMember = false, hasPaid = false, xp = 620, level = 3, goals = 3, assists = 5, yellowCards = 4, redCards = 0, rating = 8.0),
-                User(8, "01177777777", "حسين الشحات", "123456", isAdmin = false, jerseyNumber = 11, position = "هجوم", matchesPlayed = 17, matchesWon = 11, mvpCount = 3, teamAssignment = "TEAM_B", isWinningTeamMember = false, hasPaid = true, xp = 690, level = 3, goals = 11, assists = 7, yellowCards = 2, redCards = 0, rating = 8.4),
-                User(9, "01288888888", "إمام عاشور", "123456", isAdmin = false, jerseyNumber = 22, position = "خط وسط", matchesPlayed = 15, matchesWon = 9, mvpCount = 4, teamAssignment = "TEAM_A", isWinningTeamMember = true, hasPaid = true, xp = 850, level = 3, goals = 9, assists = 8, yellowCards = 3, redCards = 0, rating = 8.7),
-                User(10, "01099999999", "أبو جبل", "123456", isAdmin = false, jerseyNumber = 16, position = "حراسة مرمى", matchesPlayed = 16, matchesWon = 8, mvpCount = 1, teamAssignment = "TEAM_B", isWinningTeamMember = false, hasPaid = false, xp = 420, level = 2, goals = 0, assists = 1, yellowCards = 1, redCards = 0, rating = 7.5)
-            )
-            players.forEach { dao.insertUser(it) }
+        val oldBruce = dao.getUserByPhoneOrName("Bruce")
+        if (oldBruce != null) {
+            dao.deleteUser(oldBruce.id)
+        }
+        val oldDefault = dao.getUserByPhone("01000000000")
+        if (oldDefault != null) {
+            dao.deleteUser(oldDefault.id)
+        }
 
+        val existingMatch = dao.getMatch().firstOrNull()
+        if (existingMatch == null) {
             val match = MatchSession(
                 id = 1,
-                title = "كلاسيكو الأصدقاء الأسبوعي ⚽",
-                stadiumName = "ملعب تريكة سبورت - نجيل ممتاز",
+                title = "مباراة الأصدقاء القادمة ⚽",
+                stadiumName = "ملعب كرة القدم",
                 dateText = "الجمعة القادمة",
-                timeText = "09:00 م - 11:00 م",
-                location = "مدينة نصر - خلف النادي الأهلي",
+                timeText = "09:00 م",
+                location = "الملعب الرئيسي",
                 totalPitchCost = 600.0,
                 targetPlayersCount = 10,
                 status = "OPEN",
-                winningTeam = "TEAM_A",
-                mvpUserId = 1,
-                mvpUserName = "كابتن أحمد (الادمن)",
-                teamAName = "الفريق الأبيض (الأبطال 🏆)",
-                teamBName = "الفريق الأسود (المتحدون)",
-                teamAScore = 5,
-                teamBScore = 3
+                winningTeam = "",
+                mvpUserId = null,
+                mvpUserName = null,
+                teamAName = "الفريق الأبيض",
+                teamBName = "الفريق الأسود",
+                teamAScore = 0,
+                teamBScore = 0
             )
             dao.insertOrUpdateMatch(match)
-
-            // Seed detailed match stats for the current match
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = admin.id, playerName = admin.name, jerseyNumber = 7, team = "TEAM_A", goals = 3, assists = 1, yellowCards = 0, redCards = 0, rating = 9.8))
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[0].id, playerName = players[0].name, jerseyNumber = 10, team = "TEAM_A", goals = 2, assists = 2, yellowCards = 0, redCards = 0, rating = 9.2))
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[7].id, playerName = players[7].name, jerseyNumber = 22, team = "TEAM_A", goals = 0, assists = 2, yellowCards = 1, redCards = 0, rating = 8.5))
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[4].id, playerName = players[4].name, jerseyNumber = 1, team = "TEAM_A", goals = 0, assists = 0, yellowCards = 0, redCards = 0, rating = 9.0))
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[2].id, playerName = players[2].name, jerseyNumber = 4, team = "TEAM_A", goals = 0, assists = 0, yellowCards = 1, redCards = 0, rating = 8.4))
-
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[6].id, playerName = players[6].name, jerseyNumber = 11, team = "TEAM_B", goals = 2, assists = 1, yellowCards = 0, redCards = 0, rating = 8.7))
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[1].id, playerName = players[1].name, jerseyNumber = 14, team = "TEAM_B", goals = 1, assists = 1, yellowCards = 1, redCards = 0, rating = 8.1))
-            dao.insertOrUpdateMatchStat(PlayerMatchStat(matchId = 1, userId = players[3].id, playerName = players[3].name, jerseyNumber = 8, team = "TEAM_B", goals = 0, assists = 1, yellowCards = 0, redCards = 0, rating = 7.6))
-
-            // Seed attendances
-            listOf(admin).plus(players.take(7)).forEach { p ->
-                dao.upsertAttendance(
-                    MatchAttendance(
-                        matchId = 1,
-                        userId = p.id,
-                        userName = p.name,
-                        userPhone = p.phone,
-                        userPosition = p.position,
-                        status = "COMING"
-                    )
-                )
-            }
-            dao.upsertAttendance(
-                MatchAttendance(
-                    matchId = 1,
-                    userId = players[7].id,
-                    userName = players[7].name,
-                    userPhone = players[7].phone,
-                    userPosition = players[7].position,
-                    status = "MAYBE"
-                )
-            )
-            dao.upsertAttendance(
-                MatchAttendance(
-                    matchId = 1,
-                    userId = players[8].id,
-                    userName = players[8].name,
-                    userPhone = players[8].phone,
-                    userPosition = players[8].position,
-                    status = "NOT_COMING"
-                )
-            )
-
-            // Seed posts (Admin post highlighted!)
-            dao.insertPost(
-                Post(
-                    userId = admin.id,
-                    authorName = admin.name,
-                    authorPhone = admin.phone,
-                    isAdminAuthor = true,
-                    isPinned = true,
-                    content = "🚨 تنبيه هام للجميع: حجز الماتش يوم الجمعة الساعة 9 بالدقيقة في ملعب تريكة سبورت. الحضور قبل الماتش بربع ساعة للتسخين وتقسيم التيشرتات، والقطية 60 جنيه لكل لاعب. الرجاء تأكيد الحضور فوراً!",
-                    tag = "إعلان رسمي 📢",
-                    likesCount = 14,
-                    commentsCount = 3
-                )
-            )
-            dao.insertPost(
-                Post(
-                    userId = players[0].id,
-                    authorName = players[0].name,
-                    authorPhone = players[0].phone,
-                    isAdminAuthor = false,
-                    isPinned = false,
-                    content = "جاهزين لماتش الجمعة يا رجالة؟ الفريق الأبيض هيكتسح زي العادة وجايب حذاء جديد مخصوص للتهديف! 🔥⚽",
-                    tag = "تحدي 🔥",
-                    likesCount = 8,
-                    commentsCount = 2
-                )
-            )
-            dao.insertPost(
-                Post(
-                    userId = players[1].id,
-                    authorName = players[1].name,
-                    authorPhone = players[1].phone,
-                    isAdminAuthor = false,
-                    isPinned = false,
-                    content = "اللي هيضيع انفرادات زي الماتش اللي فات هو اللي هيدفع حق حجز الملعب كلو 😂",
-                    tag = "ميمز 😂",
-                    likesCount = 12,
-                    commentsCount = 1
-                )
-            )
-
-            // Seed public chat messages
-            dao.insertMessage(
-                ChatMessage(
-                    senderId = admin.id,
-                    senderName = admin.name,
-                    isAdminSender = true,
-                    receiverId = null,
-                    content = "مساء الخير يا شباب! مين جاي الجمعة؟"
-                )
-            )
-            dao.insertMessage(
-                ChatMessage(
-                    senderId = players[0].id,
-                    senderName = players[0].name,
-                    isAdminSender = false,
-                    receiverId = null,
-                    content = "أنا أول الحاضرين إن شاء الله، التيشرت الأبيض جاهز ⚪"
-                )
-            )
-            dao.insertMessage(
-                ChatMessage(
-                    senderId = players[1].id,
-                    senderName = players[1].name,
-                    isAdminSender = false,
-                    receiverId = null,
-                    content = "معاكم يا رجالة، الكابتن أحمد هيظبط التقسيمة على الفرازة"
-                )
-            )
-
-            // Seed initial notifications
-            dao.insertNotification(
-                AppNotification(
-                    title = "ماتش الجمعة متاح للحجز! ⚽",
-                    message = "تم فتح باب تأكيد الحضور لكلاسيكو الأسبوع.",
-                    type = "MATCH"
-                )
-            )
-            dao.insertNotification(
-                AppNotification(
-                    title = "👑 تتويج أفضل لاعب",
-                    message = "تم اختيار كابتن أحمد رجل المباراة السابقة وتتويجه بالتاج الذهبي.",
-                    type = "MVP"
-                )
-            )
         }
+    }
+
+    suspend fun purgeAllDummyData() {
+        dao.purgeDummyUsers()
+        dao.purgeDummyPosts()
+        dao.purgeDummyMessages()
+        dao.purgeDummyAttendances()
+        dao.purgeDummyNotifications()
+    }
+
+    suspend fun clearPublicChat() {
+        dao.clearPublicChat()
+    }
+
+    suspend fun clearAllPosts() {
+        dao.clearAllPosts()
     }
 }

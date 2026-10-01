@@ -9,15 +9,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.DynamicFeed
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
@@ -30,8 +25,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.FootballViewModel
+import com.example.ui.components.AdminUnlockDialog
 import com.example.ui.components.AppHeader
 import com.example.ui.components.NotificationsDialog
 import com.example.ui.screens.AdminScreen
@@ -73,10 +67,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val viewModel: FootballViewModel = viewModel()
-            val isDarkTheme by viewModel.isDarkTheme.collectAsState()
 
-            MyApplicationTheme(darkTheme = isDarkTheme) {
-                // Ensure RTL layout for authentic Arabic football experience
+            // Permanent Dark Theme
+            MyApplicationTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     MainAppContent(viewModel = viewModel)
                 }
@@ -88,13 +81,14 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppContent(viewModel: FootballViewModel) {
     val currentUser by viewModel.currentUser.collectAsState()
-    val isDarkTheme by viewModel.isDarkTheme.collectAsState()
+    val isAdminModeUnlocked by viewModel.isAdminModeUnlocked.collectAsState()
     val notifications by viewModel.notifications.collectAsState()
     val uiToast by viewModel.uiToast.collectAsState()
     val context = LocalContext.current
 
     var selectedNavIndex by remember { mutableIntStateOf(0) }
     var showNotificationsDialog by remember { mutableStateOf(false) }
+    var showAdminUnlockDialog by remember { mutableStateOf(false) }
 
     // Toast listener
     LaunchedEffect(uiToast) {
@@ -110,7 +104,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
         val user = currentUser!!
         val unreadCount = notifications.count { !it.isRead }
 
-        // BackHandler to return to home tab if on other tabs
+        // BackHandler
         BackHandler(enabled = selectedNavIndex != 0) {
             selectedNavIndex = 0
         }
@@ -119,8 +113,20 @@ fun MainAppContent(viewModel: FootballViewModel) {
             NotificationsDialog(
                 notifications = notifications,
                 onDismiss = { showNotificationsDialog = false },
-                onClearAll = {
-                    viewModel.markAllNotificationsRead()
+                onClearAll = { viewModel.markAllNotificationsRead() }
+            )
+        }
+
+        if (showAdminUnlockDialog) {
+            AdminUnlockDialog(
+                onDismiss = { showAdminUnlockDialog = false },
+                onUnlock = { username, pass ->
+                    viewModel.unlockAdminMode(username, pass) { success, _ ->
+                        if (success) {
+                            showAdminUnlockDialog = false
+                            selectedNavIndex = 5
+                        }
+                    }
                 }
             )
         }
@@ -130,10 +136,15 @@ fun MainAppContent(viewModel: FootballViewModel) {
             topBar = {
                 AppHeader(
                     currentUserName = user.name,
-                    isAdmin = user.isAdmin,
-                    isDarkTheme = isDarkTheme,
+                    isAdminModeUnlocked = isAdminModeUnlocked,
                     unreadNotificationsCount = unreadCount,
-                    onToggleTheme = { viewModel.toggleTheme() },
+                    onOpenAdminPanel = {
+                        if (isAdminModeUnlocked) {
+                            selectedNavIndex = 5
+                        } else {
+                            showAdminUnlockDialog = true
+                        }
+                    },
                     onOpenNotifications = { showNotificationsDialog = true }
                 )
             },
@@ -148,10 +159,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
                         selected = selectedNavIndex == 0,
                         onClick = { selectedNavIndex = 0 },
                         icon = {
-                            Icon(
-                                imageVector = Icons.Default.SportsSoccer,
-                                contentDescription = "الماتش"
-                            )
+                            Icon(Icons.Default.SportsSoccer, contentDescription = "الماتش")
                         },
                         label = { Text("الماتش", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(
@@ -166,10 +174,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
                         selected = selectedNavIndex == 1,
                         onClick = { selectedNavIndex = 1 },
                         icon = {
-                            Icon(
-                                imageVector = Icons.Default.Groups,
-                                contentDescription = "الفرق"
-                            )
+                            Icon(Icons.Default.Groups, contentDescription = "الفرق")
                         },
                         label = { Text("الفرق", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(
@@ -184,10 +189,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
                         selected = selectedNavIndex == 2,
                         onClick = { selectedNavIndex = 2 },
                         icon = {
-                            Icon(
-                                imageVector = Icons.Default.DynamicFeed,
-                                contentDescription = "المجتمع"
-                            )
+                            Icon(Icons.Default.DynamicFeed, contentDescription = "المجتمع")
                         },
                         label = { Text("المجتمع", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(
@@ -202,10 +204,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
                         selected = selectedNavIndex == 3,
                         onClick = { selectedNavIndex = 3 },
                         icon = {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Chat,
-                                contentDescription = "الشات"
-                            )
+                            Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "الشات")
                         },
                         label = { Text("الشات", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(
@@ -220,10 +219,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
                         selected = selectedNavIndex == 4,
                         onClick = { selectedNavIndex = 4 },
                         icon = {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "البروفايل"
-                            )
+                            Icon(Icons.Default.Person, contentDescription = "البروفايل")
                         },
                         label = { Text("البروفايل", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                         colors = NavigationBarItemDefaults.colors(
@@ -233,16 +229,13 @@ fun MainAppContent(viewModel: FootballViewModel) {
                         modifier = Modifier.testTag("nav_profile")
                     )
 
-                    // Admin Tab (if user has admin role)
-                    if (user.isAdmin) {
+                    // Admin Tab (Visible when Admin Control Panel is unlocked by Bruce / 951753)
+                    if (isAdminModeUnlocked) {
                         NavigationBarItem(
                             selected = selectedNavIndex == 5,
                             onClick = { selectedNavIndex = 5 },
                             icon = {
-                                Icon(
-                                    imageVector = Icons.Default.Security,
-                                    contentDescription = "الأدمن"
-                                )
+                                Icon(Icons.Default.Security, contentDescription = "الأدمن")
                             },
                             label = { Text("الأدمن 🛡️", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
                             colors = NavigationBarItemDefaults.colors(
@@ -266,7 +259,7 @@ fun MainAppContent(viewModel: FootballViewModel) {
                     2 -> FeedScreen(viewModel = viewModel)
                     3 -> ChatScreen(viewModel = viewModel)
                     4 -> ProfileScreen(viewModel = viewModel)
-                    5 -> if (user.isAdmin) AdminScreen(viewModel = viewModel) else MatchScreen(viewModel = viewModel)
+                    5 -> if (isAdminModeUnlocked) AdminScreen(viewModel = viewModel) else MatchScreen(viewModel = viewModel)
                 }
             }
         }
